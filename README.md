@@ -2,7 +2,7 @@
 
 **A wellness food companion that recommends what to eat based on your mood, menstrual cycle phase, and health profile, grounded in real nearby restaurants, real nutrition data, and what's actually in your pantry.**
 
-https://github.com/user-attachments/assets/426864fd-fa9a-49cd-a80f-bdbb5a2a6580
+https://github.com/user-attachments/assets/f8cbce00-9159-4d5d-b4ef-aaccbf27c74d
 
 🚀 [Try it live](https://ask-sage.streamlit.app/)
 
