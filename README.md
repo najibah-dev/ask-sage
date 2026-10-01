@@ -14,12 +14,12 @@ https://github.com/user-attachments/assets/426864fd-fa9a-49cd-a80f-bdbb5a2a6580
 
 ## What makes it different
 
-Most AI food-recommendation demos are a single prompt that trusts the model to behave. Sage is built around a rule that came out of watching it fail in practice: **anything safety-critical is checked in code, not just asked for nicely in the prompt.**
+Sage's design principle: **anything safety-critical is verified in code, alongside the prompt.**
 
-- **Real restaurants only.** The model never invents a place. Every pick is checked against Google Places results in code, not just instructed to stick to the list.
-- **Allergy safety is enforced, not requested.** Every dish's ingredients are checked in code against the user's allergy list before it's ever shown, with a keyword map that catches specific ingredients (e.g. a shellfish allergy also catches "shrimp," not just the literal word "shellfish").
-- **Honest confidence.** The model rates how sure it is about a restaurant's cuisine from its name; that self-rating is independently verified in code rather than trusted at face value.
-- **Real nutrition, not guessed macros.** Numbers come from USDA / API Ninjas lookups on the dish's actual ingredients, never invented by the model.
+- **Real restaurants only.** Every pick is checked against live Google Places results before it reaches you.
+- **Allergy-aware.** Each dish's ingredients are checked against your allergy list with a keyword map that catches specific ingredients (e.g. a shellfish allergy also catches "shrimp," not just the literal word "shellfish").
+- **Honest confidence.** The model's self-rated certainty about a restaurant's cuisine is independently verified rather than taken at face value.
+- **Real nutrition data.** Numbers come from USDA / API Ninjas lookups on the dish's actual ingredients.
 - **Cycle-phase math from real sources**, not an assumed 28-day cycle. See the citations in `app.py`'s `calculate_cycle_phase`.
 
 ## Architecture
