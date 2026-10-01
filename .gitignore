@@ -1,0 +1,14 @@
+# Secrets — never commit real API keys
+.env
+
+# Local user database — hashed passwords, health/allergy/cycle data
+sage.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS junk
+.DS_Store
