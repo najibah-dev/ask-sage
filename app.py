@@ -1873,7 +1873,15 @@ def get_nutrition_usda(dish_name: str) -> dict:
                 "vitamin_c": nm.get("Vitamin C, total ascorbic acid", 0),
                 "sodium":    nm.get("Sodium, Na", 0),
             }
-            if nutrition["calories"] and nutrition["calories"] > 0:
+            # Used to just take the first candidate with any calorie data,
+            # regardless of whether it was actually a sensible match — USDA's
+            # own search ranking isn't relevance-aware enough for that (e.g.
+            # a plain "banana" search ranks "Bananas, dehydrated, or banana
+            # powder" ABOVE "Bananas, raw"). Checking relevance per-candidate
+            # and moving on to the next one if it fails means a bad first
+            # result no longer silently wins just for having a number.
+            if (nutrition["calories"] and nutrition["calories"] > 0
+                    and _nutrition_matches_query(dish_name, nutrition["dish"])):
                 return nutrition
         return {}
     except:
@@ -1925,21 +1933,62 @@ NUTRITION_STOPWORDS = {
 }
 
 
+def _singularize(word: str) -> str:
+    """Crude plural stripping, not a real lemmatizer, just enough so "onion"
+    matches a result keyword set containing "onions" instead of treating them
+    as unrelated strings. Good enough for the simple English food words this
+    is matched against; not meant to handle every irregular plural."""
+    if word.endswith("ies") and len(word) > 4:
+        return word[:-3] + "y"
+    if word.endswith("oes") and len(word) > 4:
+        return word[:-2]
+    if word.endswith("s") and not word.endswith("ss") and len(word) > 3:
+        return word[:-1]
+    return word
+
+
 def _keywords(text: str) -> set:
     return {
-        w for w in re.findall(r"[a-z]+", text.lower())
+        _singularize(w) for w in re.findall(r"[a-z]+", text.lower())
         if w not in NUTRITION_STOPWORDS and len(w) > 2
     }
+
+
+# Words signaling a search result is a processed/transformed product, not
+# the raw ingredient a bare single-word query like "apple" or "spinach"
+# almost always means in this app's context (a dish to actually cook).
+# Found by testing real ingredient lookups and seeing USDA rank these above
+# the plain raw form: "apple" matching "Croissants, apple" (254 kcal/100g,
+# a pastry, vs ~50 for actual apple), "spinach" matching "Spinach souffle"
+# (172 vs ~23), "tomato" matching "Tomato powder" (302 vs ~18), "carrot"
+# matching "Carrot, dehydrated" (341 vs ~41), each wildly wrong in exactly
+# the direction that would silently inflate a recipe's calorie total.
+NUTRITION_PROCESSED_FORM_WORDS = {
+    "dehydrated", "powder", "flour", "souffle", "soufflé", "oil", "dried",
+    "flake", "pancake", "bread", "juice", "chip", "extract", "concentrate",
+    "croissant", "pie", "cake", "muffin", "jam", "jelly", "sauce", "paste",
+    "canned", "frozen", "smoked", "pickled", "powdered", "candied",
+    "babyfood", "toddler", "infant", "breaded", "battered",
+}
 
 
 def _nutrition_matches_query(query: str, result_dish: str) -> bool:
     """Guard against USDA/API Ninjas fuzzy-matching to something unrelated
     (e.g. searching 'chicken biryani' and getting back 'Spinach Souffle', or
     'paneer butter masala' matching 'Indian Bean Masala' on the word 'masala'
-    alone) — require at least 2 shared keywords (or the single keyword to
-    match exactly for a 1-word query), not just one generic word in common."""
+    alone) — require at least 2 shared keywords for a multi-word query.
+
+    A 1-word query (a bare ingredient like "apple") keeps the single-keyword
+    bar, but also rejects a result that looks like a processed/transformed
+    form of it (see NUTRITION_PROCESSED_FORM_WORDS) unless the query itself
+    asked for that form — "apple" shouldn't match a croissant just because
+    the word "apple" appears in its name as a qualifier."""
     q, r = _keywords(query), _keywords(result_dish)
-    needed = min(2, len(q)) or 1
+    if (r & NUTRITION_PROCESSED_FORM_WORDS) and not (q & NUTRITION_PROCESSED_FORM_WORDS):
+        return False
+    if len(q) == 1:
+        return bool(q & r)
+    needed = min(2, len(q))
     return len(q & r) >= needed
 
 
@@ -1955,10 +2004,19 @@ def get_nutrition(dish_name: str) -> dict:
 
 INGREDIENT_QUERY_OVERRIDES = {
     "egg": "egg, whole, raw", "eggs": "egg, whole, raw",
-    "cheese": "cheddar cheese", "milk": "milk, whole",
-    "yogurt": "yogurt, plain, whole milk", "rice": "rice, white, cooked",
+    "cheese": "cheddar cheese",
+    "milk": "milk, whole, 3.25% milkfat",
+    "yogurt": "yogurt, plain, whole milk",
+    "rice": "rice, white, long-grain, regular, cooked",
     "bread": "bread, whole wheat", "toast": "bread, whole wheat",
-    "butter": "butter, salted", "chicken": "chicken breast, cooked",
+    "butter": "butter, salted",
+    "chicken": "chicken, breast, cooked, roasted",
+    "apple": "apples, raw, with skin", "apples": "apples, raw, with skin",
+    "flour": "wheat flour, white, all-purpose, enriched",
+    "tomato": "tomatoes, red, ripe, raw, year round average",
+    "tomatoes": "tomatoes, red, ripe, raw, year round average",
+    "potato": "potatoes, flesh and skin, raw",
+    "potatoes": "potatoes, flesh and skin, raw",
 }
 
 

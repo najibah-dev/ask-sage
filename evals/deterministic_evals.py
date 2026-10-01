@@ -282,6 +282,88 @@ def _():
         app.db.DB_PATH = original
 
 
+# -----------------------------------------------------------------------------
+# Nutrition ingredient matching — catches a real bug a user found: a bare
+# ingredient like "apple" or "spinach" fuzzy-matching to a processed product
+# ("Croissants, apple", "Spinach souffle") that shares one keyword but has
+# wildly different nutrition, silently inflating a dish's calorie total.
+# -----------------------------------------------------------------------------
+
+@case("nutrition matching: singular/plural normalization treats them as the same word")
+def _():
+    assert app._singularize("onions") == "onion"
+    assert app._singularize("tomatoes") == "tomato"
+    assert app._singularize("berries") == "berry"
+    assert app._singularize("bananas") == "banana"
+    assert app._singularize("glass") == "glass", "must not mangle words simply ending in -ss"
+
+
+@case("nutrition matching: rejects a processed/transformed product for a bare raw-ingredient query")
+def _():
+    # Real examples found live: these actually outranked the correct raw
+    # entry in USDA's own search results for the bare ingredient name.
+    bad_matches = [
+        ("apple", "Croissants, apple"),
+        ("spinach", "Spinach souffle"),
+        ("tomato", "Tomato powder"),
+        ("carrot", "Carrot, dehydrated"),
+        ("potato", "Babyfood, potatoes, toddler"),
+        ("chicken", "Chicken breast tenders, breaded, cooked, microwaved"),
+    ]
+    for query, bad_result in bad_matches:
+        assert not app._nutrition_matches_query(query, bad_result), (
+            f"{query!r} must not match {bad_result!r}, a processed/transformed product"
+        )
+
+
+@case("nutrition matching: still accepts the correct raw/plain match for the same queries")
+def _():
+    good_matches = [
+        ("apple", "Apples, raw, without skin"),
+        ("spinach", "Spinach, raw"),
+        ("tomato", "Tomatoes, red, ripe, raw, year round average"),
+        ("carrot", "Carrots, raw"),
+        ("banana", "Bananas, raw"),
+        ("onion", "Onions, raw"),
+        ("potato", "Potatoes, flesh and skin, raw"),
+        ("chicken, breast, cooked, roasted", "Chicken, broilers or fryers, breast, meat and skin, cooked, roasted"),
+    ]
+    for query, good_result in good_matches:
+        assert app._nutrition_matches_query(query, good_result), (
+            f"{query!r} should match {good_result!r}, its correct raw/plain form"
+        )
+
+
+@case("nutrition matching: milk override is specific, not the generic phrase that matched cheese")
+def _():
+    # The regression this project actually hit: the old override "milk,
+    # whole" is a pure keyword subset of "Cheese, mozzarella, whole milk"
+    # (a cheese, not milk), and USDA ranked that cheese ABOVE actual milk
+    # for that query — so get_nutrition_usda's relevance loop (which just
+    # checks keyword overlap) accepted it as the first "relevant enough"
+    # candidate. The match guard genuinely can't tell "more detail on the
+    # same food" apart from "a different food sharing these words" by
+    # keyword overlap alone (chicken's correct match has just as many
+    # "extra" words as this cheese does) — the actual fix is a more
+    # specific override query ("milk, whole, 3.25% milkfat") that ranks the
+    # real milk entry first, verified directly against the live USDA API
+    # when this was fixed. This just guards against the override silently
+    # reverting to the old, too-generic phrasing.
+    milk_query = app.INGREDIENT_QUERY_OVERRIDES["milk"]
+    assert milk_query != "milk, whole", "reverted to the exact phrasing that matched a cheese product"
+    assert "milkfat" in milk_query or "3.25" in milk_query
+
+
+@case("nutrition matching: composite-dish mismatch guard (pre-existing behavior) still holds")
+def _():
+    assert not app._nutrition_matches_query("chicken biryani", "Spinach Souffle")
+    assert not app._nutrition_matches_query("paneer butter masala", "Indian Bean Masala")
+    assert app._nutrition_matches_query(
+        "chicken breast cooked",
+        "Chicken, broiler or fryers, breast, meat only, cooked, roasted",
+    )
+
+
 if __name__ == "__main__":
     from harness import run_all
     run_all(skip_llm=True)
