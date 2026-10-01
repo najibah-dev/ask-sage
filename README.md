@@ -4,7 +4,7 @@
 
 https://github.com/user-attachments/assets/426864fd-fa9a-49cd-a80f-bdbb5a2a6580
 
-🚀 [Try it live](#) *(link coming soon)*
+🚀 [Try it live](https://ask-sage.streamlit.app/)
 
 ---
 
