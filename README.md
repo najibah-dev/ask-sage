@@ -34,10 +34,6 @@ Three agents per turn, each with one job:
 
 Between steps 2 and 3, the Filter Agent's output passes through code-level safety nets (`_enforce_restaurant_grounding`, `_enforce_allergy_safety`, `_enforce_cuisine_confidence` in `app.py`) before anything reaches the user.
 
-## Tech stack
-
-Python · Streamlit · SQLite · [Groq](https://groq.com) (LLM inference) · Google Places API · USDA FoodData Central / API Ninjas (nutrition)
-
 ## Getting started
 
 ```bash
